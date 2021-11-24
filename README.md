@@ -7,7 +7,7 @@
 1. Install dependences
 
 ```bash
-npm run i
+npm install
 ```
 
 2. run the project
