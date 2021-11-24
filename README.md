@@ -9,6 +9,9 @@
 ```bash
 npm install
 ```
+```bash
+npm install forever -g
+```
 
 2. run the project
 
