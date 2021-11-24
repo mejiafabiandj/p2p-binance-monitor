@@ -1,5 +1,9 @@
 # p2p-binance-monitor
 
+bot system based on https://github.com/sanchezmarcos/binancio
+
+sends telegram alerts where a new low price is published on https://p2p.binance.com/
+
 
 ## Installation
 
