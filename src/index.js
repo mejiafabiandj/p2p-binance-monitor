@@ -158,7 +158,6 @@ function notifyAlert(price) {
         '<b>tradable quantity:</b> ' + price.tradable_quantity + ' ' + price.asset + '\n' +
         '<b>Payment Methods:</b> ' + price.trade_methods + '\n' +
         '<b>Order Limit:</b> ' + price.min_single_trans_amount + ' - ' + price.max_single_trans_amount + ' ' + price.fiat_unit + '\n' +
-        '<b>Advertiser:</b> ' + price.nick_name + '\n' +
-        '<a href="https://p2p.binance.com/en/advertiserDetail?advertiserNo=' + price.advertiser_no + '">https://p2p.binance.com/en/advertiserDetail?advertiserNo=' + price.advertiser_no + '</a>'
+        '<b>Advertiser:</b> <a href="https://p2p.binance.com/en/advertiserDetail?advertiserNo=' + price.advertiser_no + '">' + price.nick_name + '</a>'
     );
 }
