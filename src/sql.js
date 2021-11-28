@@ -57,39 +57,23 @@ function getAlerts(time, trade_type = 'SELL') {
     return new Promise((resolve, reject) => {
         db.all(
             `
-            with orderedList AS (
-                SELECT
-                    id,
-                    price,
-                    timestamp,
-                    ROW_NUMBER() OVER (ORDER BY price) AS row_n
+            WITH p AS 
+            (
+                SELECT id, price, NTILE(100) OVER (ORDER BY price) AS percentile
                 FROM prices
                 WHERE timestamp > datetime('now',?)
-					and trade_type = ?
-                ),
-                iqr AS (
+                    and trade_type = ?
+            ),
+            iqr as
+            (
                 SELECT
-                    price,
-                    id,
-                    timestamp,
-                    (
-                        SELECT price AS quartile_break
-                        FROM orderedList
-                        WHERE row_n = cast ( ((SELECT COUNT(*) FROM prices)*0.75) as int ) + ( ((SELECT COUNT(*) FROM prices)*0.75) > cast ( ((SELECT COUNT(*) FROM prices)*0.75) as int ))			
-                    ) AS q_three,
-                    (
-                        SELECT price AS quartile_break
-                        FROM orderedList
-                        WHERE row_n = cast ( ((SELECT COUNT(*) FROM prices)*0.25) as int ) + ( ((SELECT COUNT(*) FROM prices)*0.25) > cast ( ((SELECT COUNT(*) FROM prices)*0.25) as int ))
-                    ) AS q_one
-                    FROM orderedList
-                )
-                
-				SELECT id
-                FROM iqr
-                where price < (q_one - (1*(q_three - q_one)))
-                    and not EXISTS (select 1 from alerts where alerts.id = iqr.id)
-                order by timestamp desc
+                (SELECT price from p where percentile = 25) as q_1,
+                (SELECT price from p where percentile = 75) as q_3
+            )
+            SELECT id
+            FROM p, iqr
+            where price < (q_1 - (1.0*(q_3- q_1)))
+                and not EXISTS (select 1 from alerts where alerts.id = p.id)
             ;
             `, [time, trade_type], (err, rows) => {
                 if (err) {
