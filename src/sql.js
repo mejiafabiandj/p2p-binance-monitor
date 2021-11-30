@@ -33,7 +33,8 @@ function createTables(newdb) {
     );
     create table if not exists alerts (
 		id text primary key not null REFERENCES prices (id),
-		time_reported TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+		time_reported TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        silent BOOLEAN DEFAULT TRUE
 	);
 	`, () => {
         //nothing to do
@@ -72,7 +73,7 @@ function getAlerts(time, trade_type = 'SELL') {
             )
             SELECT id
             FROM p, iqr
-            where price < (q_1 - (1.0*(q_3- q_1)))
+            where ` + (trade_type == 'SELL' ? `price < (q_1 - (1.0*(q_3- q_1)))` : `price > (q_3 + (1.0*(q_3- q_1)))`) + `
                 and not EXISTS (select 1 from alerts where alerts.id = p.id)
             ;
             `, [time, trade_type], (err, rows) => {
@@ -85,19 +86,30 @@ function getAlerts(time, trade_type = 'SELL') {
     });
 }
 
-function insertAlert(id) {
+function insertAlert(id, min_nitification_interval = '-30 minutes') {
     if (id) {
         db.run(
-            `INSERT INTO alerts (id)
-        SELECT ?
-        WHERE NOT EXISTS(SELECT 1 FROM alerts WHERE id = ?);
-        `, [id, id], (err) => {
+            `INSERT INTO alerts (id, silent)
+            SELECT ?, 
+                (
+				    SELECT max(time_reported) from alerts where silent = FALSE and (select trade_type from prices where prices.id = ?) = (select trade_type from prices where prices.id = id)
+			    ) >   datetime('now',?)
+            WHERE NOT EXISTS(SELECT 1 FROM alerts WHERE id = ?);
+        `, [id, id, min_nitification_interval, id], (err) => {
                 if (err) {
                     console.error(err);
                 }
             });
     } else {
         console.error("Could not insert an alert: id param not defined");
+    }
+}
+
+function getAlertByID(id, callback) {
+    if (id) {
+        db.get(`SELECT * FROM alerts WHERE id = ?;`, id, callback);
+    } else {
+        console.error("Could not get an Alert: id param not defined");
     }
 }
 
@@ -115,5 +127,6 @@ module.exports = {
     insertPrices,
     getAlerts,
     insertAlert,
-    getPriceByID
+    getPriceByID,
+    getAlertByID
 };

@@ -10,33 +10,30 @@ sql.initDB();
 
 
 // Schedule tasks to be run on the server.
-cron.schedule("*/20 * * * * *", function() {
-    console.log("running at " + (new Date).toString());
-
+cron.schedule("0,20,40 * * * * *", function() {
     //get prices for buy
     getPrices({
         fiat: "COP",
         operation: "BUY",
         ticker: "USDT"
     });
+});
 
+cron.schedule("10,30,50 * * * * *", function() {
     //get sale prices
-    /*
     getPrices({
         fiat: "COP",
         operation: "SELL",
         ticker: "USDT"
     });
-    */
-
 });
 
 app.listen(3000);
 
-let totalPrices = [];
-
 async function getPrices(answers) {
-    totalPrices = [];
+    console.log(answers.operation + " Analysis running at " + (new Date).toString());
+
+    var totalPrices = [];
     const firstPage = await fetchP2PData(
         1,
         answers.fiat,
@@ -69,9 +66,14 @@ async function getPrices(answers) {
             totalPrices.push(parseInt(obj.adv.price));
         });
 
-        console.log("Minimun price: " + totalPrices[0]);
+        if (answers.operation == "BUY") {
+            console.log("Minimun Buy price: " + totalPrices[0]);
+        } else {
+            console.log("Maximum Sale price: " + totalPrices[0]);
+        }
 
-        analysePrices();
+
+        analysePrices(answers.operation);
     }
 }
 
@@ -129,8 +131,8 @@ function fetchP2PData(
     });
 }
 
-async function analysePrices() {
-    const rows = await sql.getAlerts('-5 days', 'SELL');
+async function analysePrices(operation) {
+    const rows = await sql.getAlerts('-5 days', operation == 'BUY' ? 'SELL' : 'BUY');
 
     if (rows && rows.length > 0) {
         rows.forEach(row => {
@@ -145,19 +147,31 @@ async function analysePrices() {
             });
         });
     } else {
-        console.log("No alerts found");
+        //console.log("No alerts found");
     }
 }
 
 function notifyAlert(price) {
-    console.log("notifying: " + price.price + " - price Id: " + price.id);
 
-    sendMessage(
-        '💰📉 <b>New Price Alert: Binance P2P</b>\n<b>' + price.asset + ' to ' + price.fiat_unit + '</b>\n' +
-        '<b>Price:</b> $' + price.price + '\n' +
-        '<b>tradable quantity:</b> ' + price.tradable_quantity + ' ' + price.asset + '\n' +
-        '<b>Payment Methods:</b> ' + price.trade_methods + '\n' +
-        '<b>Order Limit:</b> ' + price.min_single_trans_amount + ' - ' + price.max_single_trans_amount + ' ' + price.fiat_unit + '\n' +
-        '<b>Advertiser:</b> <a href="https://p2p.binance.com/en/advertiserDetail?advertiserNo=' + price.advertiser_no + '">' + price.nick_name + '</a>'
-    );
+    sql.getAlertByID(price.id, (err, alert) => {
+        if (err) {
+            console.error(err);
+        } else {
+            if (alert.silent) {
+                console.log("Alert not send - ommiting notification due las alert time: " + price.price + " - price Id: " + price.id);
+            } else {
+                console.log("notifying: " + price.price + " - price Id: " + price.id);
+                sendMessage(
+                    '💰' + (price.trade_type == 'SELL' ? '📉' : '📈') + ' <b>New Price Alert: Binance P2P</b>\n' +
+                    '<b>Time to: ' + (price.trade_type == 'SELL' ? 'BUY' : 'SELL') + ' ' + price.asset + ' / ' + price.fiat_unit + '</b>\n' +
+                    '<b>Price:</b> $' + price.price + '\n' +
+                    '<b>tradable quantity:</b> ' + price.tradable_quantity + ' ' + price.asset + '\n' +
+                    '<b>Payment Methods:</b> ' + price.trade_methods + '\n' +
+                    (price.min_single_trans_amount ? '<b>Order Limit:</b> ' + price.min_single_trans_amount + ' - ' + price.max_single_trans_amount + ' ' + price.fiat_unit + '\n' : '') +
+                    (price.advertiser_no ? '<b>Advertiser:</b> <a href="https://p2p.binance.com/en/advertiserDetail?advertiserNo=' + price.advertiser_no + '">' + price.nick_name + '</a>' : '')
+                );
+            }
+        }
+    });
+
 }
